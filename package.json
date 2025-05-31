@@ -4,7 +4,9 @@
   "description": "Minecraft AFK Bot",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node bot.js",
+    "build": "npm install",
+    "postinstall": "npm run build"
   },
   "keywords": ["minecraft", "bot", "afk"],
   "author": "",
@@ -12,5 +14,8 @@
   "dependencies": {
     "minecraft-protocol": "^1.44.0",
     "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 } 
