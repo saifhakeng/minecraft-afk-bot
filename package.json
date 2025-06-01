@@ -5,8 +5,7 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "build": "npm install",
-    "postinstall": "npm run build"
+    "build": "echo \"No build step required\""
   },
   "keywords": ["minecraft", "bot", "afk"],
   "author": "",
