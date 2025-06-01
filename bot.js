@@ -5,7 +5,7 @@ const UUID = require('uuid');
 const BOT_USERNAME = process.env.BOT_USERNAME || 'AFKBot123';
 const SERVER_IP = process.env.SERVER_IP || 'saifhakengl.aternos.me';
 const SERVER_PORT = parseInt(process.env.SERVER_PORT || '60701');
-const RETRY_DELAY = 30000; // Increased retry delay to 30 seconds
+const RETRY_DELAY = 30000; // 30 seconds
 let isConnecting = false;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -21,11 +21,42 @@ let currentPosition = {
 };
 let hasSpawned = false;
 let initialTeleportConfirmed = false;
-let positionInterval = null; // To store the interval ID
+let positionInterval = null;
 
-function createBot() {
+async function pingServer() {
+  return new Promise((resolve, reject) => {
+    console.log(`Pinging server ${SERVER_IP}:${SERVER_PORT}...`);
+    mc.ping({
+      host: SERVER_IP,
+      port: SERVER_PORT,
+      version: '1.21.1'
+    })
+    .then(response => {
+      console.log('Server ping successful:', {
+        version: response.version,
+        playersOnline: response.players?.online || 0,
+        maxPlayers: response.players?.max || 0
+      });
+      resolve(true);
+    })
+    .catch(err => {
+      console.error('Server ping failed:', err.message);
+      resolve(false);
+    });
+  });
+}
+
+async function createBot() {
   if (isConnecting) {
     console.log('Already attempting to connect, skipping new connection attempt');
+    return;
+  }
+
+  // Try to ping the server first
+  const serverResponding = await pingServer();
+  if (!serverResponding) {
+    console.log('Server not responding to ping, will retry later');
+    cleanup(null);
     return;
   }
   
@@ -39,9 +70,9 @@ function createBot() {
     version: '1.21.1',
     hideErrors: false,
     keepAlive: true,
-    skipValidation: false,
-    closeTimeout: 30000,
-    connectTimeout: 90000,
+    skipValidation: true,
+    closeTimeout: 120000, // Increased timeout
+    connectTimeout: 120000, // Increased timeout
     auth: 'offline',
     uuid: UUID.v4(),
     locale: 'en_US',
@@ -84,108 +115,41 @@ function createBot() {
     console.log('Successfully established connection with server (connect event).');
   });
 
-  client.on('login', (packet) => {
-    console.log('Successfully logged in (login event). Entity ID:', packet.entityId);
-  });
-
   client.on('state', (newState) => {
     console.log('Client state changed to:', newState);
     if (newState === mc.states.PLAY && !hasSpawned) {
       hasSpawned = true;
       console.log('Entered PLAY state, bot should now be visible in game.');
-    }
-  });
-
-  client.on('spawn_position', (packet) => {
-    console.log('Received world spawn_position (informational packet from server):', packet);
-  });
-
-  client.on('position', (packet) => {
-    try {
-      console.log('Server sent position packet (player sync):', JSON.stringify(packet));
-      if (packet.teleportId !== undefined) {
-        if (!initialTeleportConfirmed && hasSpawned) {
-          console.log(`Initial server position sync with teleportId: ${packet.teleportId}. Confirming and synchronizing.`);
-          currentPosition.x = packet.x;
-          currentPosition.y = packet.y;
-          currentPosition.z = packet.z;
-          currentPosition.yaw = packet.yaw;
-          currentPosition.pitch = packet.pitch;
-          currentPosition.onGround = true; 
-
-          client.write('teleport_confirm', { teleportId: packet.teleportId });
-          console.log('Initial teleport_confirm sent for ID:', packet.teleportId);
-
-          client.write('position_look', {
-            x: currentPosition.x,
-            y: currentPosition.y,
-            z: currentPosition.z,
-            yaw: currentPosition.yaw,
-            pitch: currentPosition.pitch,
-            onGround: currentPosition.onGround
-          });
-          console.log('Initial position_look sent to confirm synchronization:', currentPosition);
-          
-          initialTeleportConfirmed = true;
-
-          if (positionInterval) clearInterval(positionInterval);
-          console.log('Starting periodic position_look updates...');
-          positionInterval = setInterval(() => {
-            try {
-              if (client.state === mc.states.PLAY && hasSpawned && initialTeleportConfirmed) {
-                // console.log('[Periodic] Attempting to send position_look:', currentPosition); // Very verbose, uncomment if needed
-                client.write('position_look', {
-                  x: currentPosition.x,
-                  y: currentPosition.y,
-                  z: currentPosition.z,
-                  yaw: currentPosition.yaw,
-                  pitch: currentPosition.pitch,
-                  onGround: currentPosition.onGround
-                });
-                // console.log('[Periodic] position_look sent.'); // Very verbose
-              } else {
-                // console.log('[Periodic] Skipped sending position_look. State:', { state: client.state, hasSpawned, initialTeleportConfirmed });
-              }
-            } catch (err) {
-              console.error('CRITICAL ERROR sending periodic position_look update:', err);
-            }
-          }, 1000);
-          console.log('Periodic position_look updates started successfully.');
-
-        } else if (initialTeleportConfirmed && hasSpawned) {
-          console.log(`Subsequent server position sync with teleportId: ${packet.teleportId}. Confirming.`);
-          currentPosition.x = packet.x;
-          currentPosition.y = packet.y;
-          currentPosition.z = packet.z;
-          currentPosition.yaw = packet.yaw;
-          currentPosition.pitch = packet.pitch;
-          currentPosition.onGround = true; 
-
-          client.write('teleport_confirm', { teleportId: packet.teleportId });
-          console.log('Subsequent teleport_confirm sent for ID:', packet.teleportId);
-        } else {
-          console.warn('Received position with teleportId but conditions not met (initialTeleportConfirmed or hasSpawned is false). Ignoring for confirm logic.', 
-                      {teleportId: packet.teleportId, initialTeleportConfirmed, hasSpawned });
-        }
-      } else {
-        // console.log('Received position packet from server without teleportId (likely relative player move, not a teleport sync):', packet);
+      
+      // Start position updates after successful spawn
+      if (!positionInterval) {
+        positionInterval = setInterval(() => {
+          if (client.state === mc.states.PLAY && hasSpawned) {
+            client.write('position_look', currentPosition);
+          }
+        }, 1000);
       }
-    } catch (err) {
-      console.error('CRITICAL ERROR handling server position packet:', err);
     }
   });
 
-  client.on('success', (packet) => { // login success
-    console.log('Successfully authenticated and joined game (login success packet)! Entity ID from this packet:', packet.entityId, 'UUID:', packet.uuid);
-    isConnecting = false;
-    reconnectAttempts = 0;
-  });
-
-  client.on('end', () => {
-    // This is already handled by the specific 'end' handler defined earlier.
-    // console.log('Connection ended event from client side or error.');
-    // if (positionInterval) clearInterval(positionInterval);
-    // positionInterval = null;
+  // Handle server position updates
+  client.on('position', (packet) => {
+    if (packet.teleportId !== undefined) {
+      currentPosition.x = packet.x;
+      currentPosition.y = packet.y;
+      currentPosition.z = packet.z;
+      currentPosition.yaw = packet.yaw;
+      currentPosition.pitch = packet.pitch;
+      currentPosition.onGround = true;
+      
+      client.write('teleport_confirm', { teleportId: packet.teleportId });
+      client.write('position_look', currentPosition);
+      
+      if (!initialTeleportConfirmed) {
+        initialTeleportConfirmed = true;
+        console.log('Initial position synchronized with server');
+      }
+    }
   });
 }
 
@@ -210,7 +174,6 @@ function cleanup(client) {
   hasSpawned = false;
   initialTeleportConfirmed = false;
   
-  console.log('Calling handleDisconnect from cleanup.');
   handleDisconnect();
 }
 
