@@ -5,10 +5,10 @@ const UUID = require('uuid');
 const BOT_USERNAME = process.env.BOT_USERNAME || 'AFKBot123';
 const SERVER_IP = process.env.SERVER_IP || 'saifhakengl.aternos.me';
 const SERVER_PORT = parseInt(process.env.SERVER_PORT || '60701');
-const RETRY_DELAY = 20000;
+const RETRY_DELAY = 30000; // Increased retry delay to 30 seconds
 let isConnecting = false;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 // Track bot state
 let currentPosition = {
@@ -24,10 +24,13 @@ let initialTeleportConfirmed = false;
 let positionInterval = null; // To store the interval ID
 
 function createBot() {
-  if (isConnecting) return;
+  if (isConnecting) {
+    console.log('Already attempting to connect, skipping new connection attempt');
+    return;
+  }
+  
+  console.log(`Attempting to connect to server ${SERVER_IP}:${SERVER_PORT} as ${BOT_USERNAME}...`);
   isConnecting = true;
-
-  console.log('Attempting to connect to server...');
 
   const client = mc.createClient({
     host: SERVER_IP,
@@ -37,22 +40,28 @@ function createBot() {
     hideErrors: false,
     keepAlive: true,
     skipValidation: false,
-    closeTimeout: 30000, 
-    connectTimeout: 90000, 
+    closeTimeout: 30000,
+    connectTimeout: 90000,
     auth: 'offline',
     uuid: UUID.v4(),
-        locale: 'en_US',
-        viewDistance: 2,
-        chatMode: 0,
-        chatColors: true,
+    locale: 'en_US',
+    viewDistance: 2,
+    chatMode: 0,
+    chatColors: true,
     skinParts: 0xff,
-        mainHand: 1,
-        enableTextFiltering: false,
-        allowServerListings: true
+    mainHand: 1,
+    enableTextFiltering: false,
+    allowServerListings: true
   });
 
   client.on('error', (err) => {
-    console.error('CLIENT CONNECTION ERROR:', err); // Log as error for visibility
+    console.error('CLIENT CONNECTION ERROR:', err);
+    console.log('Error details:', {
+      message: err.message,
+      code: err.code,
+      errno: err.errno,
+      syscall: err.syscall
+    });
     cleanup(client);
   });
 
@@ -82,8 +91,8 @@ function createBot() {
   client.on('state', (newState) => {
     console.log('Client state changed to:', newState);
     if (newState === mc.states.PLAY && !hasSpawned) {
-      hasSpawned = true; 
-      console.log('Entered PLAY state.');
+      hasSpawned = true;
+      console.log('Entered PLAY state, bot should now be visible in game.');
     }
   });
 
@@ -190,47 +199,30 @@ function cleanup(client) {
   try {
     if (client) {
       console.log('Removing all listeners and ending client connection in cleanup.');
-      client.removeAllListeners(); 
-      client.end('disconnect.quitting'); // Attempt graceful disconnect
+      client.removeAllListeners();
+      client.end('Disconnecting gracefully');
     }
   } catch (e) {
-    console.error('Error while ending client during cleanup:', e);
+    console.error('Error during cleanup:', e);
   }
   
-  if (!isConnecting) { // Avoid triggering reconnect if we are already in the process of connecting
-    console.log('Calling handleDisconnect from cleanup.');
-    handleDisconnect(); 
-  } else {
-    console.log('Skipping handleDisconnect in cleanup as isConnecting is true.');
-  }
+  isConnecting = false;
+  hasSpawned = false;
+  initialTeleportConfirmed = false;
+  
+  console.log('Calling handleDisconnect from cleanup.');
+  handleDisconnect();
 }
 
 function handleDisconnect() {
   console.log('handleDisconnect routine called.');
-  // Check if a reconnection attempt is already scheduled or in progress implicitly by isConnecting being false
-  if (isConnecting && reconnectAttempts > 0) { 
-    console.warn('handleDisconnect: A connection attempt is likely already in progress or scheduled (isConnecting=true with attempts > 0). Suppressing new reconnect attempt.');
-    return;
-  }
-  
-  isConnecting = false;
-  hasSpawned = false; 
-  initialTeleportConfirmed = false;
-  
-  // If positionInterval was somehow not cleared, ensure it is.
-  if (positionInterval) {
-      console.warn('positionInterval was still active in handleDisconnect. Clearing now.');
-      clearInterval(positionInterval);
-      positionInterval = null;
-  }
-
   reconnectAttempts++;
-  console.log(`Preparing to reconnect. Attempt: ${reconnectAttempts} of ${MAX_RECONNECT_ATTEMPTS}.`);
+  console.log(`Preparing to reconnect. Attempt: ${reconnectAttempts} of ${MAX_RECONNECT_ATTEMPTS}`);
 
-  if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) { 
-    console.log(`Maximum reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Waiting for 5 minutes before trying again...`);
+  if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    console.log(`Maximum reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Waiting for 5 minutes before resetting counter...`);
     reconnectAttempts = 0;
-    setTimeout(createBot, 300000); 
+    setTimeout(createBot, 300000);
   } else {
     console.log(`Waiting ${RETRY_DELAY/1000} seconds before reconnecting...`);
     setTimeout(createBot, RETRY_DELAY);
@@ -238,15 +230,15 @@ function handleDisconnect() {
 }
 
 // Start the bot
+console.log('Starting Minecraft AFK Bot...');
+console.log('Configuration:', {
+  username: BOT_USERNAME,
+  server: SERVER_IP,
+  port: SERVER_PORT
+});
 createBot();
 
 process.on('SIGINT', () => {
   console.log('SIGINT received. Bot shutting down...');
-  if (positionInterval) {
-    console.log('Clearing position interval due to SIGINT.');
-    clearInterval(positionInterval);
-  }
-  // Ideally, get a reference to the current client and call cleanup(client) or client.end()
-  // For now, exiting directly after attempting to clear interval.
   process.exit(0);
 }); 
