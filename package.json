@@ -5,16 +5,18 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "build": "echo \"No build step required\""
+    "build": "npm install",
+    "postinstall": "npm install"
   },
   "keywords": ["minecraft", "bot", "afk"],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "minecraft-protocol": "^1.44.0",
-    "uuid": "^9.0.1"
+    "mineflayer": "^4.14.0",
+    "dotenv": "16.3.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "22.x",
+    "npm": ">=9.0.0"
   }
 } 
