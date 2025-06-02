@@ -8,9 +8,9 @@ const SERVER_IP = 'donutsmp.net';  // Hardcoded server IP
 const SERVER_PORT = 25565;  // Hardcoded server port
 
 // Check if credentials are provided
-if (!BOT_USERNAME || !BOT_PASSWORD) {
-  console.error('Error: Minecraft credentials not found in environment variables!');
-  console.error('Please set MC_USERNAME and MC_PASSWORD environment variables.');
+if (!BOT_USERNAME) {
+  console.error('Error: Minecraft username not found in environment variables!');
+  console.error('Please set MC_USERNAME environment variable.');
   process.exit(1);
 }
 
@@ -22,13 +22,19 @@ function createBot() {
     port: SERVER_PORT
   });
 
-  const bot = mineflayer.createBot({
+  const botOptions = {
     host: SERVER_IP,
     port: SERVER_PORT,
     username: BOT_USERNAME,
-    password: BOT_PASSWORD,
     auth: 'microsoft'
-  });
+  };
+
+  // Only add password if it's provided
+  if (BOT_PASSWORD) {
+    botOptions.password = BOT_PASSWORD;
+  }
+
+  const bot = mineflayer.createBot(botOptions);
 
   bot.on('spawn', () => {
     console.log('Bot has spawned in game');
