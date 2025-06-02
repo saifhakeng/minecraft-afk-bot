@@ -1,0 +1,15 @@
+[phases.setup]
+# Explicitly use Node.js 22
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+# Attempt a very clean install. 
+cmds = ["npm install --production"]
+
+[start]
+# Command to start the application
+cmd = "npm start"
+
+[meta]
+# Ensure Nixpacks respects this Node.js version
+nodejs_version = "22" 

@@ -5,8 +5,8 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "build": "npm install",
-    "postinstall": "npm install"
+    "build": "npm install --production",
+    "postinstall": "npm install --production"
   },
   "keywords": ["minecraft", "bot", "afk"],
   "author": "",
