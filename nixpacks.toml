@@ -6,9 +6,12 @@ nixPkgs = ["nodejs_22"]
 # Attempt a very clean install. 
 cmds = ["npm install --production"]
 
+[phases.build]
+cmds = ["npm run build"]
+
 [start]
 # Command to start the application
-cmd = "npm start"
+cmd = "node bot.js"
 
 [meta]
 # Ensure Nixpacks respects this Node.js version
