@@ -24,14 +24,13 @@ function createBot() {
   const bot = mineflayer.createBot({
     host: SERVER_IP,
     port: SERVER_PORT,
+    version: '1.20.1',
     username: BOT_USERNAME,
     auth: 'microsoft',
-    authTitle: 'Minecraft AFK Bot',
-    flow: 'msal',
-    password: process.env.MC_PASSWORD,
-    authOptions: {
-      clientId: '389b1b32-b5d5-43b2-bddc-84ce938d6737',
-      flow: 'msal'
+    onMsaCode: (data) => {
+      console.log('To authenticate:');
+      console.log('1. Open this URL:', data.verification_uri);
+      console.log('2. Enter this code:', data.user_code);
     }
   });
 
