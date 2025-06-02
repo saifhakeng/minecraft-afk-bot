@@ -26,7 +26,13 @@ function createBot() {
     port: SERVER_PORT,
     username: BOT_USERNAME,
     auth: 'microsoft',
-    authTitle: 'Minecraft AFK Bot'
+    authTitle: 'Minecraft AFK Bot',
+    flow: 'msal',
+    password: process.env.MC_PASSWORD,
+    authOptions: {
+      clientId: '389b1b32-b5d5-43b2-bddc-84ce938d6737',
+      flow: 'msal'
+    }
   });
 
   bot.on('spawn', () => {
