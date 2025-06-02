@@ -3,9 +3,8 @@ const mineflayer = require('mineflayer');
 
 // Bot configuration
 const BOT_USERNAME = process.env.MC_USERNAME;
-const BOT_PASSWORD = process.env.MC_PASSWORD;
-const SERVER_IP = 'donutsmp.net';  // Hardcoded server IP
-const SERVER_PORT = 25565;  // Hardcoded server port
+const SERVER_IP = 'donutsmp.net';
+const SERVER_PORT = 25565;
 
 // Check if credentials are provided
 if (!BOT_USERNAME) {
@@ -22,19 +21,13 @@ function createBot() {
     port: SERVER_PORT
   });
 
-  const botOptions = {
+  const bot = mineflayer.createBot({
     host: SERVER_IP,
     port: SERVER_PORT,
     username: BOT_USERNAME,
-    auth: 'microsoft'
-  };
-
-  // Only add password if it's provided
-  if (BOT_PASSWORD) {
-    botOptions.password = BOT_PASSWORD;
-  }
-
-  const bot = mineflayer.createBot(botOptions);
+    auth: 'microsoft',
+    authTitle: 'Minecraft AFK Bot'
+  });
 
   bot.on('spawn', () => {
     console.log('Bot has spawned in game');
