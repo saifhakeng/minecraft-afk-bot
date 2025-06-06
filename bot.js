@@ -5,12 +5,19 @@ const mineflayer = require('mineflayer');
 const BOT_USERNAME = process.env.MC_USERNAME;
 const SERVER_IP = 'donutsmp.net';
 const SERVER_PORT = 25565;
+const MAX_RETRY_DELAY = 300000; // 5 minutes
+let retryCount = 0;
 
 // Check if credentials are provided
 if (!BOT_USERNAME) {
   console.error('Error: Minecraft username not found in environment variables!');
   console.error('Please set MC_USERNAME environment variable.');
   process.exit(1);
+}
+
+function getRetryDelay() {
+  // Exponential backoff: 30 seconds * 2^retryCount, max 5 minutes
+  return Math.min(30000 * Math.pow(2, retryCount), MAX_RETRY_DELAY);
 }
 
 function createBot() {
@@ -36,6 +43,7 @@ function createBot() {
 
   bot.on('spawn', () => {
     console.log('Bot has spawned in game');
+    retryCount = 0; // Reset retry count on successful connection
     // Start anti-AFK movement
     setInterval(() => {
       bot.swingArm('right');
@@ -44,17 +52,37 @@ function createBot() {
 
   bot.on('error', (err) => {
     console.error('Error:', err);
-    setTimeout(createBot, 30000);
+    
+    // Check for specific error types
+    if (err.toString().includes('ACCOUNT_SUSPENDED')) {
+      console.error('Account is suspended. Please check your account status at minecraft.net');
+      process.exit(1); // Exit as this requires manual intervention
+    }
+    
+    if (err.toString().includes('Too Many Requests')) {
+      console.log('Rate limited by authentication service. Increasing retry delay...');
+      retryCount++;
+    }
+
+    const delay = getRetryDelay();
+    console.log(`Attempting reconnection in ${delay/1000} seconds...`);
+    setTimeout(createBot, delay);
   });
 
   bot.on('kicked', (reason) => {
     console.log('Bot was kicked:', reason);
-    setTimeout(createBot, 30000);
+    retryCount++;
+    const delay = getRetryDelay();
+    console.log(`Attempting reconnection in ${delay/1000} seconds...`);
+    setTimeout(createBot, delay);
   });
 
   bot.on('end', () => {
     console.log('Bot disconnected, attempting to reconnect...');
-    setTimeout(createBot, 30000);
+    retryCount++;
+    const delay = getRetryDelay();
+    console.log(`Attempting reconnection in ${delay/1000} seconds...`);
+    setTimeout(createBot, delay);
   });
 }
 
